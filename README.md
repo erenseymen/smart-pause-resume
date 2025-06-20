@@ -34,6 +34,20 @@ https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59
 ## Usage
 Just run the script in the background, or use the systemd service. It will listen for MPRIS events and manage playback automatically.
 
+## Gnome Integration: Toggle Button
+Gnome users can add a convenient toggle button for smart-pause-resume using the [Custom Command Toggle](https://extensions.gnome.org/extension/7012/custom-command-toggle/) extension:
+
+- **Toggle ON command:**
+  ```sh
+  systemctl --user start smart-pause-resume.service
+  ```
+- **Toggle OFF command:**
+  ```sh
+  systemctl --user stop smart-pause-resume.service
+  ```
+
+This adds a switch to your Gnome panel, letting you easily enable or disable the smart-pause-resume service without using the terminal.
+
 ## How it works
 - Listens for MPRIS events using `playerctl --all-players --follow status`
 - Maintains a stack of paused players
