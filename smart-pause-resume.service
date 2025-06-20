@@ -1,0 +1,9 @@
+[Unit]
+Description=Auto-pause previous media when new media starts
+
+[Service]
+ExecStart=%h/bin/smart-pause-resume
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

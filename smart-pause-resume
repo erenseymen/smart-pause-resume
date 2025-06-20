@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+###############################################################################
+# smart-pause-resume — guarantee that ONLY ONE MPRIS player is “Playing”
+# -----------------------------------------------------------------------------
+# ✓ 1. Auto-pause all other players when one starts/resumes
+# ✓ 2. Resume the most-recently paused player when the foreground one is
+#      Paused, Stopped *or quits*
+# ✓ 3. Treat **every MPRIS bus-name** (e.g. vlc.instance-42) as a distinct
+#      player — different windows of the same app are independent
+# ✓ 4. If the user stops/closes a player it is removed from the stack forever
+# ✓ 5. The paused-player stack (LIFO) never contains duplicates
+#
+# Only needs: Bash 4+, Playerctl ≥2.2, core GNU utilities.
+###############################################################################
+
+shopt -s extglob
+set -euo pipefail
+
+# ─────────────── internal stack & helpers ──────────────── #
+declare -a QUEUE=()           # LIFO stack, index 0 = top
+declare -A AUTO_PAUSED=()     # busName → 1  (flag set when *we* pause it)
+
+push_stack() {                # push_stack <busName>
+  local p=$1
+  for i in "${!QUEUE[@]}"; do [[ ${QUEUE[i]} == "$p" ]] && unset 'QUEUE[i]'; done
+  QUEUE=("$p" "${QUEUE[@]}")
+}
+
+pop_stack() {                 # echo next valid player or return 1
+  while ((${#QUEUE[@]})); do
+    local p=${QUEUE[0]}; QUEUE=("${QUEUE[@]:1}")
+    playerctl --player="$p" status &>/dev/null && { echo "$p"; return 0; }
+  done; return 1
+}
+
+remove_from_stack() {         # remove_from_stack <busName>
+  local tgt=$1
+  for i in "${!QUEUE[@]}"; do [[ ${QUEUE[i]} == "$tgt" ]] && unset 'QUEUE[i]'; done
+  QUEUE=("${QUEUE[@]}")
+}
+
+any_playing() { playerctl --all-players status 2>/dev/null | grep -q '^Playing$'; }
+
+pause_others() {              # pause_others <currentBusName>
+  local cur=$1 p
+  while read -r p; do
+    [[ $p == "$cur" ]] && continue
+    if [[ $(playerctl --player="$p" status 2>/dev/null || true) == "Playing" ]]; then
+      AUTO_PAUSED["$p"]=1
+      playerctl --player="$p" pause
+      push_stack "$p"
+    fi
+  done < <(playerctl --list-all)
+}
+
+resume_next() { local n; if n=$(pop_stack); then playerctl --player="$n" play; fi; }
+
+# ───────────────── event dispatcher ────────────────────── #
+on_event() {                  # on_event <busName> <status>
+  local player=$1 status=$2
+
+  case $status in
+    Playing)
+      unset 'AUTO_PAUSED[$player]' || true
+      remove_from_stack "$player"
+      pause_others "$player"
+      ;;
+
+    Paused|Stopped)
+      if [[ -n ${AUTO_PAUSED[$player]+x} ]]; then
+        unset 'AUTO_PAUSED[$player]'         # we did it – ignore
+        return
+      fi
+      remove_from_stack "$player"            # user action → never resume it
+      any_playing || resume_next
+      ;;
+    *) : ;;                                  # ignore other statuses
+  esac
+}
+
+housekeeping_tick() { any_playing || resume_next; }
+
+trap 'echo "smart-pause-resume: terminated." >&2; exit' INT TERM
+
+# ──────────────── initial sanity pass ─────────────────── #
+# If several players are already Playing, keep the *last* (highest pid order)
+initial_tidy() {
+  local keep=""
+  while read -r p; do
+    [[ $(playerctl --player="$p" status 2>/dev/null || true) == "Playing" ]] || continue
+    if [[ -z $keep ]]; then
+      keep=$p                                    # keep this one
+    else
+      AUTO_PAUSED["$p"]=1
+      playerctl --player="$p" pause
+      push_stack "$p"
+    fi
+  done < <(playerctl --list-all)
+}
+initial_tidy
+
+# ───────────────────── main loop ───────────────────────── #
+exec 3< <(
+  # playerInstance = full bus-name, unique per window / process
+  playerctl --all-players --follow status \
+            --format '{{playerInstance}} {{status}}'
+)
+
+while true; do
+  if read -r -t 0.5 LINE <&3; then
+    [[ -z $LINE ]] && continue
+    read -r PLAYER STATUS <<<"$LINE"
+    on_event "$PLAYER" "$STATUS"
+  else
+    housekeeping_tick
+  fi
+done
