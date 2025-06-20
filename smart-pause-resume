@@ -81,9 +81,8 @@ on_event() {                  # on_event <busName> <status>
 trap 'echo "smart-pause-resume: terminated." >&2; exit' INT TERM
 
 # ───────────────────── main loop ───────────────────────── #
-playerctl --all-players --follow status \
-      --format '{{playerInstance}} {{status}}' | while read -r LINE; do
-  [[ -z $LINE ]] && continue
-  read -r PLAYER STATUS <<<"$LINE"
+playerctl --all-players --follow status --format '{{playerInstance}} {{status}}' |
+while read -r PLAYER STATUS; do
+  [[ -z $PLAYER ]] && continue
   on_event "$PLAYER" "$STATUS"
 done
