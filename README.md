@@ -16,7 +16,6 @@ https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59
 ## Requirements
 - Bash 4+
 - [Playerctl](https://github.com/altdesktop/playerctl) ≥2.2
-- Core GNU utilities
 
 ## Installation
 1. Copy `smart-pause-resume` to a directory in your `$PATH` (e.g. `~/bin/`):
