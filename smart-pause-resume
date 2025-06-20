@@ -80,23 +80,6 @@ on_event() {                  # on_event <busName> <status>
 
 trap 'echo "smart-pause-resume: terminated." >&2; exit' INT TERM
 
-# ──────────────── initial sanity pass ─────────────────── #
-# If several players are already Playing, keep the *last* (highest pid order)
-initial_tidy() {
-  local keep=""
-  while read -r p; do
-    [[ $(playerctl --player="$p" status 2>/dev/null || true) == "Playing" ]] || continue
-    if [[ -z $keep ]]; then
-      keep=$p                                    # keep this one
-    else
-      AUTO_PAUSED["$p"]=1
-      playerctl --player="$p" pause
-      push_stack "$p"
-    fi
-  done < <(playerctl --list-all)
-}
-initial_tidy
-
 # ───────────────────── main loop ───────────────────────── #
 playerctl --all-players --follow status \
       --format '{{playerInstance}} {{status}}' | while read -r LINE; do
