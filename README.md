@@ -48,6 +48,19 @@ Gnome users can add a convenient toggle button for smart-pause-resume using the 
 
 This adds a switch to your Gnome panel, letting you easily enable or disable the smart-pause-resume service without using the terminal.
 
+## Pause All Players Manually
+
+If you want to pause all MPRIS players at once, use the included `pause-all` script:
+
+```sh
+./pause-all
+```
+
+- If the `smart-pause-resume` service is running, it will be temporarily stopped, all players will be paused, and then the service will be restarted.
+- If the service is not running, it simply pauses all players.
+
+This is useful if you want to quickly pause everything regardless of which player is active.
+
 ## How it works
 - Listens for MPRIS events using `playerctl --all-players --follow status`
 - Maintains a stack of paused players

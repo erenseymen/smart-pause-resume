@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if systemctl --user --quiet is-active smart-pause-resume.service; then
+  systemctl --user stop smart-pause-resume.service
+  playerctl --all-players pause
+  systemctl --user start smart-pause-resume.service
+else
+  playerctl --all-players pause
+fi
