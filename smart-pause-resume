@@ -9,6 +9,7 @@
 #      player — different windows of the same app are independent
 # ✓ 4. If the user stops/closes a player it is removed from the stack forever
 # ✓ 5. The paused-player stack (LIFO) never contains duplicates
+# ✓ 6. Handles existing players at startup, pausing all but one.
 #
 # Only needs: Bash 4+, Playerctl ≥2.2, core GNU utilities.
 ###############################################################################
@@ -16,10 +17,12 @@
 shopt -s extglob
 set -euo pipefail
 
-# ─────────────── internal stack & helpers ──────────────── #
-declare -a QUEUE=()           # LIFO stack, index 0 = top
-declare -A AUTO_PAUSED=()     # busName → 1  (flag set when *we* pause it)
+# ────────────────  internal state  ────────────────────── #
+declare -A STATUS=()          # busName → last known status
+declare -A AUTO_PAUSED=()     # busName → 1  (flag when *we* paused it)
+declare -a QUEUE=()           # LIFO stack (index 0 = top)
 
+# ────────────────  stack helpers  ─────────────────────── #
 push_stack() {                # push_stack <busName>
   local p=$1
   for i in "${!QUEUE[@]}"; do [[ ${QUEUE[i]} == "$p" ]] && unset 'QUEUE[i]'; done
@@ -29,8 +32,9 @@ push_stack() {                # push_stack <busName>
 pop_stack() {                 # echo next valid player or return 1
   while ((${#QUEUE[@]})); do
     local p=${QUEUE[0]}; QUEUE=("${QUEUE[@]:1}")
-    playerctl --player="$p" status &>/dev/null && { echo "$p"; return 0; }
-  done; return 1
+    [[ -n ${STATUS[$p]+x} ]] && { echo "$p"; return 0; }
+  done
+  return 1
 }
 
 remove_from_stack() {         # remove_from_stack <busName>
@@ -39,25 +43,51 @@ remove_from_stack() {         # remove_from_stack <busName>
   QUEUE=("${QUEUE[@]}")
 }
 
-any_playing() { playerctl --all-players status 2>/dev/null | grep -q '^Playing$'; }
-
-pause_others() {              # pause_others <currentBusName>
-  local cur=$1 p
-  while read -r p; do
-    [[ $p == "$cur" ]] && continue
-    if [[ $(playerctl --player="$p" status 2>/dev/null || true) == "Playing" ]]; then
-      AUTO_PAUSED["$p"]=1
-      playerctl --player="$p" pause
-      push_stack "$p"
-    fi
-  done < <(playerctl --list-all)
+# ────────────────  utils  ─────────────────────────────── #
+any_playing() {               # true (0) if some player currently Playing
+  for p in "${!STATUS[@]}"; do [[ ${STATUS[$p]} == "Playing" ]] && return 0; done
+  return 1
 }
 
-resume_next() { local n; if n=$(pop_stack); then playerctl --player="$n" play; fi; }
+pause_player() {   # pause_player <busName>  — helper with state update
+  local p=$1
+  AUTO_PAUSED[$p]=1
+  playerctl --player="$p" pause &>/dev/null || true
+  STATUS[$p]="Paused"
+  push_stack "$p"
+}
+
+pause_others() {              # pause_others <currentBusName>
+  local cur=$1
+  for p in "${!STATUS[@]}"; do
+    [[ $p == "$cur" ]] && continue
+    if [[ ${STATUS[$p]} == "Playing" ]]; then
+      pause_player "$p"
+    fi
+  done
+}
+
+resume_next() {               # attempt to resume next valid player in stack
+  local n
+  while n=$(pop_stack); do
+    # try to resume, suppress stderr to avoid noise
+    if playerctl --player="$n" play &>/dev/null; then
+      STATUS[$n]="Playing"
+      unset 'AUTO_PAUSED[$n]' || true
+      return 0
+    else
+      # player vanished; drop its state and continue
+      unset 'STATUS[$n]'
+      unset 'AUTO_PAUSED[$n]' || true
+    fi
+  done
+}
 
 # ───────────────── event dispatcher ────────────────────── #
 on_event() {                  # on_event <busName> <status>
   local player=$1 status=$2
+
+  STATUS[$player]="$status"               # update table
 
   case $status in
     Playing)
@@ -74,15 +104,56 @@ on_event() {                  # on_event <busName> <status>
       remove_from_stack "$player"            # user action → never resume it
       any_playing || resume_next
       ;;
-    *) : ;;                                  # ignore other statuses
   esac
+}
+
+# ───────────────── startup scan  ─────────────────────── #
+startup_scan() {
+  local designated_player=""
+
+  # Get a list of all player instances. Use `|| true` to prevent exit on error.
+  local player_list
+  player_list=$(playerctl --list-all 2>/dev/null || true)
+
+  # If there are no players, there's nothing to do.
+  if [[ -z "$player_list" ]]; then
+    return
+  fi
+
+  # Iterate through each discovered player instance
+  while read -r p; do
+    # Skip empty lines that might result from the command
+    [[ -z "$p" ]] && continue
+
+    # Get the status for this specific player.
+    # If player quits between list and status commands, default to "Stopped".
+    local s
+    s=$(playerctl --player="$p" status 2>/dev/null || echo "Stopped")
+
+    # Record the initial, true status of every player
+    STATUS["$p"]="$s"
+
+    if [[ "$s" == "Playing" ]]; then
+      if [[ -z "$designated_player" ]]; then
+        # This is the first "Playing" player found. It becomes the one we keep.
+        designated_player="$p"
+      else
+        # A player is already designated, so this one must be paused.
+        pause_player "$p"
+      fi
+    fi
+  done <<< "$player_list" # Feed the list of players into the loop
 }
 
 trap 'echo "smart-pause-resume: terminated." >&2; exit' INT TERM
 
+startup_scan
+sleep 0.5 # Give some time for the initial scan to settle
+
 # ───────────────────── main loop ───────────────────────── #
 playerctl --all-players --follow status --format '{{playerInstance}} {{status}}' |
-while read -r PLAYER STATUS; do
+while read -r PLAYER STATUS_LINE; do
   [[ -z $PLAYER ]] && continue
-  on_event "$PLAYER" "$STATUS"
+  on_event "$PLAYER" "$STATUS_LINE"
 done
+
