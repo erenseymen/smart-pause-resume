@@ -101,6 +101,10 @@ on_event() {                  # on_event <busName> <status>
         unset 'AUTO_PAUSED[$player]'         # we did it – ignore
         return
       fi
+      sleep 0.2
+      if [[ "$(playerctl --player="$player" status 2>/dev/null)" == "Playing" ]]; then
+        return  # it resumed again in the meantime, ignore
+      fi
       remove_from_stack "$player"            # user action → never resume it
       any_playing || resume_next
       ;;
