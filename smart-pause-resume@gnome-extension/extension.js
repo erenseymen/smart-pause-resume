@@ -99,24 +99,40 @@ export default class SmartPauseResumeExtension extends Extension {
         this._indicator = new SmartPauseResumeIndicator(this);
         Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
 
-        // Defer initialization to run in the main loop, ensuring non-blocking behavior
-        this._idleId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
-            this._idleId = 0;
-            this._initialize();
-            return GLib.SOURCE_REMOVE;
+        // Listen for settings changes to activate/deactivate functionality
+        this._settingsChangedId = this._settings.connect('changed::enabled', () => {
+            if (this._settings.get_boolean('enabled')) {
+                this._activate();
+            } else {
+                this._deactivate();
+            }
         });
+
+        // Only initialize if currently enabled
+        if (this._settings.get_boolean('enabled')) {
+            // Defer initialization to run in the main loop, ensuring non-blocking behavior
+            this._idleId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+                this._idleId = 0;
+                this._initialize();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     /**
      * Extension Lifecycle: Disable
      * 
-     * thorough cleanup of all signals, proxies, and UI elements.
+     * Thorough cleanup of all signals, proxies, and UI elements.
      */
     disable() {
-        if (this._idleId) {
-            GLib.source_remove(this._idleId);
-            this._idleId = 0;
+        // Disconnect settings listener
+        if (this._settingsChangedId && this._settings) {
+            this._settings.disconnect(this._settingsChangedId);
+            this._settingsChangedId = null;
         }
+
+        // Deactivate functionality
+        this._deactivate();
 
         // Destroy Quick Settings indicator
         if (this._indicator) {
@@ -124,24 +140,49 @@ export default class SmartPauseResumeExtension extends Extension {
             this._indicator = null;
         }
 
-        // Unsubscribe signals
+        this._settings = null;
+    }
+
+    /**
+     * Activate functionality (called when Quick Settings toggle is turned ON)
+     * 
+     * Sets up all DBus connections and starts monitoring players.
+     */
+    _activate() {
+        console.log('[Smart Pause Resume] Activating...');
+        this._initialize();
+    }
+
+    /**
+     * Deactivate functionality (called when Quick Settings toggle is turned OFF)
+     * 
+     * Cleans up all DBus connections, proxies, and state to free resources.
+     */
+    _deactivate() {
+        console.log('[Smart Pause Resume] Deactivating...');
+
+        if (this._idleId) {
+            GLib.source_remove(this._idleId);
+            this._idleId = 0;
+        }
+
+        // Unsubscribe NameOwnerChanged signal
         if (this._nameOwnerChangedId && this._connection) {
             this._connection.signal_unsubscribe(this._nameOwnerChangedId);
             this._nameOwnerChangedId = null;
         }
-        this._connection = null;
-        this._dbusProxy = null;
 
-        // Clean up all player proxies
+        // Clean up all player proxies and their signals
         for (let busName of this._players.keys()) {
             this._removePlayer(busName);
         }
 
+        this._connection = null;
+        this._dbusProxy = null;
         this._players.clear();
         this._status.clear();
         this._autoPaused.clear();
         this._pausedStack = [];
-        this._settings = null;
     }
 
     /**
@@ -367,7 +408,7 @@ export default class SmartPauseResumeExtension extends Extension {
      * Decides whether to pause others or resume previous players.
      */
     _onStatusChanged(busName, status) {
-        if (!this._settings || !this._settings.get_boolean('enabled')) return;
+        if (!this._settings) return;
 
         const oldStatus = this._status.get(busName);
         this._status.set(busName, status);
