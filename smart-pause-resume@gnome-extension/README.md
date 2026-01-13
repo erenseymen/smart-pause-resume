@@ -13,7 +13,7 @@ A GNOME Shell extension that ensures **only one MPRIS media player** is "Playing
 
 ## Requirements
 
-- GNOME Shell 46, 47, or 48
+- GNOME Shell 46, 47, 48, or 49
 - No external dependencies (uses native D-Bus communication)
 
 ## Installation
