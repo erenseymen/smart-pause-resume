@@ -21,7 +21,7 @@ GNOME Extension is created with Claude Opus 4.5.
 
 ## 🎨 GNOME Shell Extension (Recommended for GNOME users)
 
-A native GNOME Shell extension with graphical preferences and no external dependencies.
+A native GNOME Shell extension with Quick Settings integration and no external dependencies.
 
 ### Requirements
 - GNOME Shell 46, 47, 48, or 49
@@ -56,12 +56,7 @@ A native GNOME Shell extension with graphical preferences and no external depend
 
 ### Configuration
 
-Open preferences:
-```sh
-gnome-extensions prefs smart-pause-resume@erenseymen.github.io
-```
-
-Or use the GNOME Extensions app.
+The extension adds a toggle directly to your GNOME Quick Settings panel for easy access. Any additional settings (like resume delay) can be modified via `gsettings`.
 
 **See [smart-pause-resume@gnome-extension/README.md](smart-pause-resume@gnome-extension/README.md) for detailed documentation.**
 

@@ -9,7 +9,7 @@ A GNOME Shell extension that ensures **only one MPRIS media player** is "Playing
 - **Distinct** handling for every MPRIS bus-name (e.g. `vlc.instance-42`)
 - **Stack-based**: If you stop/close a player, it is removed from the stack forever
 - **No duplicates** in the paused-player stack (LIFO)
-- **Configurable**: Enable/disable functionality and adjust resume delay via preferences
+- **Configurable**: Enable/disable functionality via Quick Settings
 
 ## Requirements
 
@@ -48,18 +48,17 @@ A GNOME Shell extension that ensures **only one MPRIS media player** is "Playing
 
 ## Configuration
 
-Open the extension preferences to configure:
+The extension is primarily configured via the **Quick Settings** panel in GNOME.
 
+### Quick Settings
+- **Smart Pause**: Toggle the entire extension functionality on/off.
+
+### Advanced Settings (via gsettings)
+For internal settings like the resume delay, use `gsettings`:
 ```bash
-gnome-extensions prefs smart-pause-resume@erenseymen.github.io
+gsettings set org.gnome.shell.extensions.smart-pause-resume resume-delay 1000
 ```
-
-Or access via GNOME Extensions app.
-
-### Settings
-
-- **Enable Auto-Pause/Resume**: Toggle the extension functionality on/off
-- **Resume Delay**: Time to wait (in milliseconds) before confirming a pause/stop event and resuming another player. Default: 600ms
+- **resume-delay**: Time to wait (in milliseconds) before confirming a pause/stop event and resuming another player. Default: 600ms.
 
 ## How It Works
 
@@ -92,7 +91,7 @@ This extension replaces the original bash script (`smart-pause-resume`) with:
 - ✅ Native GNOME Shell integration
 - ✅ No external dependencies (no `playerctl` needed)
 - ✅ Direct D-Bus communication
-- ✅ Graphical preferences UI
+- ✅ Quick Settings integration
 - ✅ Better performance (no subprocess spawning)
 
 The bash script is still available for non-GNOME environments.
