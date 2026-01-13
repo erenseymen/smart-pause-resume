@@ -14,7 +14,7 @@ const MPRIS_PATH = '/org/mpris/MediaPlayer2';
  */
 const SmartPauseResumeToggle = GObject.registerClass(
     class SmartPauseResumeToggle extends QuickSettings.QuickToggle {
-        constructor(extensionObject, onToggleChanged) {
+        constructor(extensionObject) {
             super({
                 title: 'Smart Pause',
                 subtitle: 'Auto-pause media',
@@ -23,7 +23,6 @@ const SmartPauseResumeToggle = GObject.registerClass(
             });
 
             this._settings = extensionObject.getSettings();
-            this._onToggleChanged = onToggleChanged;
 
             // Bind to settings
             this._settings.bind(
@@ -32,20 +31,9 @@ const SmartPauseResumeToggle = GObject.registerClass(
                 'checked',
                 Gio.SettingsBindFlags.DEFAULT
             );
-
-            // Listen for toggle changes
-            this._settingsChangedId = this._settings.connect('changed::enabled', () => {
-                if (this._onToggleChanged) {
-                    this._onToggleChanged(this._settings.get_boolean('enabled'));
-                }
-            });
         }
 
         destroy() {
-            if (this._settingsChangedId) {
-                this._settings.disconnect(this._settingsChangedId);
-                this._settingsChangedId = null;
-            }
             super.destroy();
         }
     }
@@ -56,9 +44,9 @@ const SmartPauseResumeToggle = GObject.registerClass(
  */
 const SmartPauseResumeIndicator = GObject.registerClass(
     class SmartPauseResumeIndicator extends QuickSettings.SystemIndicator {
-        constructor(extensionObject, onToggleChanged) {
+        constructor(extensionObject) {
             super();
-            this.quickSettingsItems.push(new SmartPauseResumeToggle(extensionObject, onToggleChanged));
+            this.quickSettingsItems.push(new SmartPauseResumeToggle(extensionObject));
         }
 
         destroy() {
@@ -186,6 +174,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (proxy, res) => {
+                if (!this._settings) return;
                 try {
                     const result = proxy.call_finish(res);
                     const [names] = result.deepUnpack();
@@ -277,9 +266,9 @@ export default class SmartPauseResumeExtension extends Extension {
 
     _updatePlayerStatus(busName, proxy) {
         // 1. Try Cached
-        const cached = proxy.get_cached_property('PlaybackStatus');
-        if (cached) {
-            this._onStatusChanged(busName, cached.deepUnpack());
+        const status = this._getPlayerStatusCached(proxy);
+        if (status && status !== 'Stopped') {
+            this._onStatusChanged(busName, status);
             return;
         }
 
@@ -291,6 +280,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (obj, res) => {
+                if (!this._settings) return;
                 try {
                     const result = obj.call_finish(res);
                     const [val] = result.deepUnpack();
@@ -381,6 +371,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (obj, res) => {
+                if (!this._settings) return;
                 try {
                     obj.call_finish(res);
                     this._status.set(busName, 'Paused');
@@ -420,14 +411,14 @@ export default class SmartPauseResumeExtension extends Extension {
                 -1,
                 null,
                 (obj, res) => {
+                    if (!this._settings) return;
                     try {
                         obj.call_finish(res);
                         this._status.set(busName, 'Playing');
                         this._autoPaused.delete(busName);
                     } catch (e) {
-                        // Failed to play, loop will continue on next trigger or user action
-                        // but since loop is synchronous here, we might miss trying the NEXT one immediately.
-                        // However, strictly adhering to _pausedStack logic, we try one.
+                        // Failed to play, try next one
+                        this._resumeNext();
                     }
                 }
             );
