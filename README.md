@@ -6,10 +6,6 @@ Guarantee that **only one MPRIS player** is "Playing" at a time on your Linux de
 - 🐚 **Bash Script** - Universal solution for any Linux desktop
 - 🎨 **GNOME Extension** - Native integration for GNOME Shell 46+
 
-Bash Script is created with ChatGPT o3. ([conversation](https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59))
-
-GNOME Extension is created with Claude Opus 4.5.
-
 ## Features
 - **Auto-pause** all other players when one starts or resumes
 - **Resume** the most-recently paused player when the foreground one is paused, stopped, or quits
