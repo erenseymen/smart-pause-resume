@@ -18,14 +18,17 @@ The extension must be packaged as a `.zip` file containing only the necessary ru
 
 ### Command Line Packing:
 
-Run the following command from inside the `smart-pause-resume@gnome-extension` directory:
+The official way to package the extension is using the `gnome-extensions` tool:
 
 ```bash
-# Remove old build if exists
-rm -f smart-pause-resume.zip
+# This creates smart-pause-resume@erenseymen.github.io.shell-extension.zip
+gnome-extensions pack --force .
+```
 
-# Create new zip
-zip -r smart-pause-resume.zip . -x "*.git*" -x "schemas/gschemas.compiled" -x "*.md" -x "PUBLISHING.md"
+*Note: If `gnome-extensions` is not installed, you can use `zip`:*
+
+```bash
+zip -r smart-pause-resume@erenseymen.github.io.shell-extension.zip . -x "*.git*" -x "schemas/gschemas.compiled" -x "*.md" -x "PUBLISHING.md"
 ```
 
 ## Step 2: Validation
@@ -46,7 +49,7 @@ If you want to test the extension locally before publishing:
 1. Unzip the package to your extensions directory:
    ```bash
    mkdir -p ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
-   unzip smart-pause-resume.zip -d ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   unzip smart-pause-resume@erenseymen.github.io.shell-extension.zip -d ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
    ```
 2. **IMPORTANT**: Compile the schemas manually. Use the path where you extracted the files:
    ```bash
@@ -62,7 +65,7 @@ If you want to test the extension locally before publishing:
 ## Step 3: Upload
 
 1. Go to [extensions.gnome.org/upload](https://extensions.gnome.org/upload/).
-2. Select the `smart-pause-resume.zip` you just created.
+2. Select the `smart-pause-resume@erenseymen.github.io.shell-extension.zip` you just created.
 3. Click **Upload Extension**.
 
 ## Step 4: Review Process
