@@ -5,12 +5,16 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 
+// MPRIS Usage per spec: https://specifications.freedesktop.org/mpris-spec/latest/
 const MPRIS_PREFIX = 'org.mpris.MediaPlayer2.';
 const MPRIS_PLAYER_IFACE = 'org.mpris.MediaPlayer2.Player';
 const MPRIS_PATH = '/org/mpris/MediaPlayer2';
 
 /**
  * Quick Settings Toggle for Smart Pause/Resume
+ * 
+ * Provides a UI switch in the Quick Settings menu to easily enable/disable 
+ * the auto-pause functionality without going to Extensions app.
  */
 const SmartPauseResumeToggle = GObject.registerClass(
     class SmartPauseResumeToggle extends QuickSettings.QuickToggle {
@@ -24,7 +28,7 @@ const SmartPauseResumeToggle = GObject.registerClass(
 
             this._settings = extensionObject.getSettings();
 
-            // Bind to settings
+            // Bi-directional binding helps keep UI in sync with GSettings
             this._settings.bind(
                 'enabled',
                 this,
@@ -41,6 +45,8 @@ const SmartPauseResumeToggle = GObject.registerClass(
 
 /**
  * Quick Settings Indicator for Smart Pause/Resume
+ * 
+ * Container to inject the Toggle into the Quick Settings menu.
  */
 const SmartPauseResumeIndicator = GObject.registerClass(
     class SmartPauseResumeIndicator extends QuickSettings.SystemIndicator {
@@ -56,13 +62,23 @@ const SmartPauseResumeIndicator = GObject.registerClass(
     }
 );
 
+/**
+ * Main Extension Class
+ * 
+ * Logic Overview:
+ * 1. Monitors DBus for new/removed Media Players (org.mpris.MediaPlayer2.*).
+ * 2. Monitors 'PlaybackStatus' property changes on those players.
+ * 3. When a player sends 'Playing', we iterate all other known players and send 'Pause'.
+ * 4. We track a LIFO stack of paused players to support 'Smart Resume'.
+ * 5. When the active player pauses/stops, we pop from the stack and resume the previous one.
+ */
 export default class SmartPauseResumeExtension extends Extension {
     constructor(metadata) {
         super(metadata);
         this._players = new Map();      // busName → {proxy, signalId}
         this._status = new Map();       // busName → 'Playing'|'Paused'|'Stopped'
-        this._autoPaused = new Set();   // Set of busNames we paused
-        this._pausedStack = [];         // LIFO: index 0 = top
+        this._autoPaused = new Set();   // Set of busNames we paused automatically
+        this._pausedStack = [];         // LIFO Stack for resume history: index 0 = top (most recent)
         this._dbusProxy = null;
         this._connection = null;
         this._nameOwnerChangedId = null;
@@ -70,6 +86,12 @@ export default class SmartPauseResumeExtension extends Extension {
         this._idleId = 0;
     }
 
+    /**
+     * Extension Lifecycle: Enable
+     * 
+     * We initialize UI immediately, but defer heavy DBus initialization to an idle handler
+     * to avoid blocking the main thread during GNOME Shell startup/extension loading.
+     */
     enable() {
         this._settings = this.getSettings();
 
@@ -77,7 +99,7 @@ export default class SmartPauseResumeExtension extends Extension {
         this._indicator = new SmartPauseResumeIndicator(this);
         Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
 
-        // Defer initialization to run in the main loop, but ensure strictly async DBus usage
+        // Defer initialization to run in the main loop, ensuring non-blocking behavior
         this._idleId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
             this._idleId = 0;
             this._initialize();
@@ -85,6 +107,11 @@ export default class SmartPauseResumeExtension extends Extension {
         });
     }
 
+    /**
+     * Extension Lifecycle: Disable
+     * 
+     * thorough cleanup of all signals, proxies, and UI elements.
+     */
     disable() {
         if (this._idleId) {
             GLib.source_remove(this._idleId);
@@ -117,6 +144,16 @@ export default class SmartPauseResumeExtension extends Extension {
         this._settings = null;
     }
 
+    /**
+     * Async Initialization Chain
+     * 
+     * 1. Get Session Bus
+     * 2. Subscribe to NameOwnerChanged (to detect player start/exit)
+     * 3. Create DBus Proxy for org.freedesktop.DBus (to list current names)
+     * 4. Scan for existing players
+     * 
+     * All DBus calls are asynchronous (finish/callback) to prevent UI freezes.
+     */
     _initialize() {
         console.log('[Smart Pause Resume] Initializing asynchronously...');
 
@@ -162,6 +199,9 @@ export default class SmartPauseResumeExtension extends Extension {
         });
     }
 
+    /**
+     * Check currently running services and register any that match MPRIS prefix.
+     */
     _scanExistingPlayers() {
         if (!this._dbusProxy) return;
 
@@ -191,6 +231,10 @@ export default class SmartPauseResumeExtension extends Extension {
         );
     }
 
+    /**
+     * Handler for DBus NameOwnerChanged
+     * Detects when players appear or disappear dynamically.
+     */
     _onNameOwnerChanged(connection, sender, path, iface, signalName, parameters) {
         try {
             const [name, oldOwner, newOwner] = parameters.deepUnpack();
@@ -206,6 +250,9 @@ export default class SmartPauseResumeExtension extends Extension {
         }
     }
 
+    /**
+     * Setup a new player: Create Proxy and subscribe to PropertiesChanged
+     */
     _addPlayer(busName) {
         if (this._players.has(busName)) return;
 
@@ -234,7 +281,9 @@ export default class SmartPauseResumeExtension extends Extension {
         if (!this._connection || !this._settings) return;
 
         try {
-            // Subscribe to PropertiesChanged
+            // Subscribe to PropertiesChanged specifically for this player
+            // We use the global connection.signal_subscribe but filter by sender inside the callback
+            // This is often more reliable than proxy-signal wrappers for raw property changes.
             const signalId = this._connection.signal_subscribe(
                 null, // sender (listen to all, filter in callback)
                 'org.freedesktop.DBus.Properties',
@@ -265,14 +314,14 @@ export default class SmartPauseResumeExtension extends Extension {
     }
 
     _updatePlayerStatus(busName, proxy) {
-        // 1. Try Cached
+        // 1. Try Cached first to save a roundtrip
         const status = this._getPlayerStatusCached(proxy);
         if (status && status !== 'Stopped') {
             this._onStatusChanged(busName, status);
             return;
         }
 
-        // 2. Fallback to Async Call
+        // 2. Fallback to Async Call if cache misses
         proxy.call(
             'org.freedesktop.DBus.Properties.Get',
             new GLib.Variant('(ss)', [MPRIS_PLAYER_IFACE, 'PlaybackStatus']),
@@ -307,11 +356,16 @@ export default class SmartPauseResumeExtension extends Extension {
         this._autoPaused.delete(busName);
         this._removeFromStack(busName);
 
+        // If the player that vanished was the one playing, we might want to resume another
         if (!this._anyPlaying()) {
             this._resumeNext();
         }
     }
 
+    /**
+     * Core Logic: Status Changed
+     * Decides whether to pause others or resume previous players.
+     */
     _onStatusChanged(busName, status) {
         if (!this._settings || !this._settings.get_boolean('enabled')) return;
 
@@ -321,25 +375,29 @@ export default class SmartPauseResumeExtension extends Extension {
         if (status === 'Playing') {
             this._autoPaused.delete(busName);
             this._removeFromStack(busName);
-            // Pause others
+            // New player started: Pause others
             this._pauseOthers(busName);
         } else if (status === 'Paused' || status === 'Stopped') {
+            // If we automatically paused this player before, ignore this event
+            // to avoid loop/confusion.
             if (this._autoPaused.has(busName)) {
                 this._autoPaused.delete(busName);
                 return;
             }
 
-            // User initiated pause - wait delay before resuming next
+            // User manually intervened (paused/stopped).
+            // Wait a small delay to ensure this isn't a transient state or track change.
             const delay = this._settings.get_int('resume-delay');
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
-                // Check if still exists and status actually currently valid
+                // Check if player still exists
                 const playerObj = this._players.get(busName);
                 if (playerObj) {
-                    // Re-check status just in case
+                    // Re-check actual status to avoid race conditions
                     const currentStatus = this._getPlayerStatusCached(playerObj.proxy);
                     if (currentStatus === 'Playing') return GLib.SOURCE_REMOVE;
                 }
 
+                // If truly stopped/paused, resume the next player in stack
                 this._removeFromStack(busName);
                 if (!this._anyPlaying()) {
                     this._resumeNext();
