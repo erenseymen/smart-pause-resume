@@ -1,10 +1,75 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 
 const MPRIS_PREFIX = 'org.mpris.MediaPlayer2.';
 const MPRIS_PLAYER_IFACE = 'org.mpris.MediaPlayer2.Player';
 const MPRIS_PATH = '/org/mpris/MediaPlayer2';
+
+/**
+ * Quick Settings Toggle for Smart Pause/Resume
+ */
+const SmartPauseResumeToggle = GObject.registerClass(
+    class SmartPauseResumeToggle extends QuickSettings.QuickToggle {
+        constructor(extensionObject, onToggleChanged) {
+            super({
+                title: 'Smart Pause',
+                subtitle: 'Auto-pause media',
+                iconName: 'media-playback-pause-symbolic',
+                toggleMode: true,
+            });
+
+            this._settings = extensionObject.getSettings();
+            this._onToggleChanged = onToggleChanged;
+
+            // Bind to settings
+            this._settings.bind(
+                'enabled',
+                this,
+                'checked',
+                Gio.SettingsBindFlags.DEFAULT
+            );
+
+            // Listen for toggle changes
+            this._settingsChangedId = this._settings.connect('changed::enabled', () => {
+                if (this._onToggleChanged) {
+                    this._onToggleChanged(this._settings.get_boolean('enabled'));
+                }
+            });
+        }
+
+        destroy() {
+            if (this._settingsChangedId) {
+                this._settings.disconnect(this._settingsChangedId);
+                this._settingsChangedId = null;
+            }
+            super.destroy();
+        }
+    }
+);
+
+/**
+ * Quick Settings Indicator for Smart Pause/Resume
+ * Note: No tray icon is shown - only the toggle in Quick Settings
+ */
+const SmartPauseResumeIndicator = GObject.registerClass(
+    class SmartPauseResumeIndicator extends QuickSettings.SystemIndicator {
+        constructor(extensionObject, onToggleChanged) {
+            super();
+
+            // No tray icon - just add the toggle to quick settings
+            this.quickSettingsItems.push(new SmartPauseResumeToggle(extensionObject, onToggleChanged));
+        }
+
+        destroy() {
+            this.quickSettingsItems.forEach(item => item.destroy());
+            super.destroy();
+        }
+    }
+);
 
 export default class SmartPauseResumeExtension extends Extension {
     constructor(metadata) {
@@ -20,6 +85,10 @@ export default class SmartPauseResumeExtension extends Extension {
 
     enable() {
         this._settings = this.getSettings();
+
+        // Add Quick Settings toggle
+        this._indicator = new SmartPauseResumeIndicator(this);
+        Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
 
         // Watch for MPRIS players appearing/disappearing on session bus
         this._dbusProxy = Gio.DBusProxy.new_for_bus_sync(
@@ -42,6 +111,12 @@ export default class SmartPauseResumeExtension extends Extension {
     }
 
     disable() {
+        // Destroy Quick Settings indicator
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
+
         // Disconnect signal
         if (this._nameOwnerChangedId && this._dbusProxy) {
             this._dbusProxy.disconnectSignal(this._nameOwnerChangedId);
@@ -137,12 +212,9 @@ export default class SmartPauseResumeExtension extends Extension {
                 null, // arg0 filter - set to null to receive all
                 Gio.DBusSignalFlags.NONE,
                 (conn, sender, path, iface, signal, params) => {
-                    console.log(`[SmartPauseResume] PropertiesChanged received from ${busName}`);
                     const [interfaceName, changedProps, invalidatedProps] = params.deepUnpack();
-                    console.log(`[SmartPauseResume] Interface: ${interfaceName}, Props: ${JSON.stringify(Object.keys(changedProps))}`);
                     if (interfaceName === MPRIS_PLAYER_IFACE && changedProps['PlaybackStatus']) {
                         const status = changedProps['PlaybackStatus'].deepUnpack();
-                        console.log(`[SmartPauseResume] Status changed to: ${status}`);
                         this._onStatusChanged(busName, status);
                     }
                 }
@@ -195,7 +267,11 @@ export default class SmartPauseResumeExtension extends Extension {
     }
 
     _onStatusChanged(busName, status) {
-        if (!this._settings.get_boolean('enabled'))
+        if (!this._settings) {
+            return;
+        }
+        const enabled = this._settings.get_boolean('enabled');
+        if (!enabled)
             return;
 
         const oldStatus = this._status.get(busName);
