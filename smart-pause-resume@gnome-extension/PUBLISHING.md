@@ -39,6 +39,26 @@ gnome-extensions pack --force .
 
 *Note: The manual zip method in Step 1 is often safer to ensure you control exactly what goes in.*
 
+## Manual Testing (Local Installation)
+
+If you want to test the extension locally before publishing:
+
+1. Unzip the package to your extensions directory:
+   ```bash
+   mkdir -p ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   unzip smart-pause-resume.zip -d ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   ```
+2. **IMPORTANT**: Compile the schemas manually. Use the path where you extracted the files:
+   ```bash
+   glib-compile-schemas ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io/schemas/
+   ```
+   *The error `GLib.FileError: ... gschemas.compiled ... No such file` occurs if you skip this step.*
+3. Restart GNOME Shell (Logout/Login on Wayland, or `Alt+F2` -> `r` on X11).
+4. Enable the extension:
+   ```bash
+   gnome-extensions enable smart-pause-resume@erenseymen.github.io
+   ```
+
 ## Step 3: Upload
 
 1. Go to [extensions.gnome.org/upload](https://extensions.gnome.org/upload/).
