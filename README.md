@@ -2,6 +2,10 @@
 
 Guarantee that **only one MPRIS player** is "Playing" at a time on your Linux desktop. When you start or resume a media player, all others are auto-paused. When you pause/stop/close the current player, the most recently paused one resumes. Each player window (bus name) is treated independently.
 
+**Available in two versions:**
+- 🐚 **Bash Script** - Universal solution for any Linux desktop
+- 🎨 **GNOME Extension** - Native integration for GNOME Shell 46+
+
 This script is created with ChatGPT o3.
 
 https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59
@@ -13,11 +17,65 @@ https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59
 - **Stack-based**: If you stop/close a player, it is removed from the stack forever
 - **No duplicates** in the paused-player stack (LIFO)
 
-## Requirements
+---
+
+## 🎨 GNOME Shell Extension (Recommended for GNOME users)
+
+A native GNOME Shell extension with graphical preferences and no external dependencies.
+
+### Requirements
+- GNOME Shell 46, 47, or 48
+- No external dependencies
+
+### Installation
+
+1. Navigate to the extension directory:
+   ```sh
+   cd smart-pause-resume@gnome-extension
+   ```
+
+2. Compile schemas:
+   ```sh
+   glib-compile-schemas schemas/
+   ```
+
+3. Install the extension:
+   ```sh
+   mkdir -p ~/.local/share/gnome-shell/extensions
+   cp -r . ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   ```
+
+4. Restart GNOME Shell:
+   - **Wayland**: Log out and log back in
+   - **X11**: Press `Alt+F2`, type `r`, and press Enter
+
+5. Enable the extension:
+   ```sh
+   gnome-extensions enable smart-pause-resume@erenseymen.github.io
+   ```
+
+### Configuration
+
+Open preferences:
+```sh
+gnome-extensions prefs smart-pause-resume@erenseymen.github.io
+```
+
+Or use the GNOME Extensions app.
+
+**See [smart-pause-resume@gnome-extension/README.md](smart-pause-resume@gnome-extension/README.md) for detailed documentation.**
+
+---
+
+## 🐚 Bash Script (Universal)
+
+A standalone bash script that works on any Linux desktop environment.
+
+### Requirements
 - Bash 4+
 - [Playerctl](https://github.com/altdesktop/playerctl) ≥2.2
 
-## Installation
+### Installation
 1. Copy `smart-pause-resume` to a directory in your `$PATH` (e.g. `~/bin/`):
    ```sh
    cp smart-pause-resume ~/bin/
@@ -31,10 +89,10 @@ https://chatgpt.com/share/6854a758-aec0-8006-bedf-baf606a9ce59
      systemctl --user enable --now smart-pause-resume.service
      ```
 
-## Usage
+### Usage
 Just run the script in the background, or use the systemd service. It will listen for MPRIS events and manage playback automatically.
 
-## Gnome Integration: Toggle Button
+### Gnome Integration: Toggle Button
 Gnome users can add a convenient toggle button for smart-pause-resume using the [Custom Command Toggle](https://extensions.gnome.org/extension/7012/custom-command-toggle/) extension:
 
 - **Toggle ON command:**
@@ -48,7 +106,7 @@ Gnome users can add a convenient toggle button for smart-pause-resume using the 
 
 This adds a switch to your Gnome panel, letting you easily enable or disable the smart-pause-resume service without using the terminal.
 
-## Pause All Players Manually
+### Pause All Players Manually
 
 If you want to pause all MPRIS players at once, use the included `pause-all` script:
 
@@ -61,10 +119,12 @@ If you want to pause all MPRIS players at once, use the included `pause-all` scr
 
 This is useful if you want to quickly pause everything regardless of which player is active.
 
+---
+
 ## How it works
-- Listens for MPRIS events using `playerctl --all-players --follow status`
+- Listens for MPRIS events using D-Bus (GNOME extension) or `playerctl` (bash script)
 - Maintains a stack of paused players
-- Only resumes players that were auto-paused by the script
+- Only resumes players that were auto-paused by the script/extension
 - Ignores players stopped/paused by the user
 
 ## License

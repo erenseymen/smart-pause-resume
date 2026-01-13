@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.smart-pause-resume" path="/org/gnome/shell/extensions/smart-pause-resume/">
+    <key name="enabled" type="b">
+      <default>true</default>
+      <summary>Enable auto-pause/resume</summary>
+      <description>When enabled, automatically pauses other media players when one starts playing and resumes the most recently paused player when the current one stops.</description>
+    </key>
+    <key name="resume-delay" type="i">
+      <default>600</default>
+      <range min="0" max="2000"/>
+      <summary>Resume delay (milliseconds)</summary>
+      <description>Time to wait before confirming a pause/stop event and resuming another player. This prevents false triggers when rapidly switching playback states.</description>
+    </key>
+  </schema>
+</schemalist>

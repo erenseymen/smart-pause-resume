@@ -1,0 +1,13 @@
+{
+  "uuid": "smart-pause-resume@erenseymen.github.io",
+  "name": "Smart Pause Resume",
+  "description": "Ensures only one media player is playing at a time. Auto-pauses other players and resumes the most recently paused one.",
+  "version": 1,
+  "shell-version": [
+    "46",
+    "47",
+    "48"
+  ],
+  "url": "https://github.com/erenseymen/smart-pause-resume",
+  "settings-schema": "org.gnome.shell.extensions.smart-pause-resume"
+}
