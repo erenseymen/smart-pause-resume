@@ -398,9 +398,7 @@ export default class SmartPauseResumeExtension extends Extension {
         this._removeFromStack(busName);
 
         // If the player that vanished was the one playing, we might want to resume another
-        if (!this._anyPlaying()) {
-            this._resumeNext();
-        }
+        this._resumeNext();
     }
 
     /**
@@ -440,9 +438,7 @@ export default class SmartPauseResumeExtension extends Extension {
 
                 // If truly stopped/paused, resume the next player in stack
                 this._removeFromStack(busName);
-                if (!this._anyPlaying()) {
-                    this._resumeNext();
-                }
+                this._resumeNext();
                 return GLib.SOURCE_REMOVE;
             });
         }
@@ -495,6 +491,11 @@ export default class SmartPauseResumeExtension extends Extension {
     }
 
     _resumeNext() {
+        // Don't resume anything if a player is currently playing
+        for (let status of this._status.values()) {
+            if (status === 'Playing') return;
+        }
+
         while (this._pausedStack.length > 0) {
             const busName = this._pausedStack.shift();
             if (!this._status.has(busName)) continue;
@@ -523,13 +524,6 @@ export default class SmartPauseResumeExtension extends Extension {
             );
             return; // We attempted one, stop loop.
         }
-    }
-
-    _anyPlaying() {
-        for (let status of this._status.values()) {
-            if (status === 'Playing') return true;
-        }
-        return false;
     }
 
     _pushStack(busName) {
