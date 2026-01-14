@@ -26,17 +26,12 @@ A GNOME Shell extension that ensures **only one MPRIS media player** is "Playing
    cd smart-pause-resume@gnome-extension
    glib-compile-schemas schemas/
    ```
-3. Copy the extension to your local extensions directory:
+3. Link the extension to your local extensions directory:
    ```bash
    mkdir -p ~/.local/share/gnome-shell/extensions
-   cp -r smart-pause-resume@gnome-extension ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   ln -sf . ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
    ```
    
-   Or create a symlink for development:
-   ```bash
-   ln -sf /path/to/smart-pause-resume@gnome-extension ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
-   ```
-
 4. Restart GNOME Shell:
    - On X11: Press `Alt+F2`, type `r`, and press Enter
    - On Wayland: Log out and log back in
