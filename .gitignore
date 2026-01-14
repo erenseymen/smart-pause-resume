@@ -1,0 +1,10 @@
+# GNOME Extension generated files
+smart-pause-resume@gnome-extension/schemas/gschemas.compiled
+
+# Common temporary files
+*.swp
+*~
+.DS_Store
+node_modules/
+dist/
+build/
