@@ -38,7 +38,7 @@ A native GNOME Shell extension with Quick Settings integration and no external d
 3. Install the extension:
    ```sh
    mkdir -p ~/.local/share/gnome-shell/extensions
-   cp -r . ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   ln -sf . ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
    ```
 
 4. Restart GNOME Shell:
