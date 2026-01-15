@@ -10,5 +10,6 @@
     "49"
   ],
   "url": "https://github.com/erenseymen/smart-pause-resume",
-  "settings-schema": "org.gnome.shell.extensions.smart-pause-resume"
+  "settings-schema": "org.gnome.shell.extensions.smart-pause-resume",
+  "icon": "icon.png"
 }
