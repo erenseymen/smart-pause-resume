@@ -38,6 +38,10 @@ const SmartPauseResumeToggle = GObject.registerClass(
         }
 
         destroy() {
+            // Explicitly unbinding is tricky with strict 'bind', but destroying 
+            // the object usually handles it. To be safer against reference cycles,
+            // we ensure we drop our reference to settings.
+            this._settings = null;
             super.destroy();
         }
     }
@@ -79,11 +83,13 @@ export default class SmartPauseResumeExtension extends Extension {
         this._status = new Map();       // busName → 'Playing'|'Paused'|'Stopped'
         this._autoPaused = new Set();   // Set of busNames we paused automatically
         this._pausedStack = [];         // LIFO Stack for resume history: index 0 = top (most recent)
+        this._timeouts = new Set();     // Track active timeouts
         this._dbusProxy = null;
         this._connection = null;
         this._nameOwnerChangedId = null;
         this._settings = null;
         this._idleId = 0;
+        this._isActive = false;         // Guard flag for async callbacks
     }
 
     /**
@@ -150,6 +156,7 @@ export default class SmartPauseResumeExtension extends Extension {
      */
     _activate() {
         console.log('[Smart Pause Resume] Activating...');
+        this._isActive = true;
         this._initialize();
     }
 
@@ -160,11 +167,18 @@ export default class SmartPauseResumeExtension extends Extension {
      */
     _deactivate() {
         console.log('[Smart Pause Resume] Deactivating...');
+        this._isActive = false;
 
         if (this._idleId) {
             GLib.source_remove(this._idleId);
             this._idleId = 0;
         }
+
+        // Clear any pending timeouts
+        for (const id of this._timeouts) {
+            GLib.source_remove(id);
+        }
+        this._timeouts.clear();
 
         // Unsubscribe NameOwnerChanged signal
         if (this._nameOwnerChangedId && this._connection) {
@@ -200,6 +214,7 @@ export default class SmartPauseResumeExtension extends Extension {
 
         // 1. Get Session Connection Asynchronously
         Gio.bus_get(Gio.BusType.SESSION, null, (obj, res) => {
+            if (!this._isActive) return; // Guard
             try {
                 this._connection = Gio.bus_get_finish(res);
 
@@ -224,6 +239,7 @@ export default class SmartPauseResumeExtension extends Extension {
                     'org.freedesktop.DBus',
                     null,
                     (proxyObj, proxyRes) => {
+                        if (!this._isActive) return; // Guard
                         try {
                             this._dbusProxy = Gio.DBusProxy.new_for_bus_finish(proxyRes);
                             // 4. Scan existing players once everything is ready
@@ -255,7 +271,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (proxy, res) => {
-                if (!this._settings) return;
+                if (!this._isActive || !this._settings) return; // Guard
                 try {
                     const result = proxy.call_finish(res);
                     const [names] = result.deepUnpack();
@@ -307,6 +323,7 @@ export default class SmartPauseResumeExtension extends Extension {
             MPRIS_PLAYER_IFACE,
             null,
             (obj, res) => {
+                if (!this._isActive || !this._settings) return; // Guard
                 try {
                     const proxy = Gio.DBusProxy.new_for_bus_finish(res);
                     this._onPlayerProxyReady(busName, proxy);
@@ -319,7 +336,7 @@ export default class SmartPauseResumeExtension extends Extension {
 
     _onPlayerProxyReady(busName, proxy) {
         // Double check if we still need this player (might have been removed while connecting)
-        if (!this._connection || !this._settings) return;
+        if (!this._isActive || !this._connection || !this._settings) return;
 
         try {
             // Subscribe to PropertiesChanged specifically for this player
@@ -370,7 +387,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (obj, res) => {
-                if (!this._settings) return;
+                if (!this._isActive || !this._settings) return; // Guard
                 try {
                     const result = obj.call_finish(res);
                     const [val] = result.deepUnpack();
@@ -427,7 +444,8 @@ export default class SmartPauseResumeExtension extends Extension {
             // User manually intervened (paused/stopped).
             // Wait a small delay to ensure this isn't a transient state or track change.
             const delay = this._settings.get_int('resume-delay');
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+
+            this._addTimeout(delay, () => {
                 // Check if player still exists
                 const playerObj = this._players.get(busName);
                 if (playerObj) {
@@ -442,6 +460,18 @@ export default class SmartPauseResumeExtension extends Extension {
                 return GLib.SOURCE_REMOVE;
             });
         }
+    }
+
+    /**
+     * Helper to track timeouts so they can be cleared on deactivate
+     */
+    _addTimeout(delay, callback) {
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+            this._timeouts.delete(id);
+            return callback();
+        });
+        this._timeouts.add(id);
+        return id;
     }
 
     _getPlayerStatusCached(proxy) {
@@ -466,7 +496,7 @@ export default class SmartPauseResumeExtension extends Extension {
             -1,
             null,
             (obj, res) => {
-                if (!this._settings) return;
+                if (!this._isActive || !this._settings) return; // Guard
                 try {
                     obj.call_finish(res);
                     this._status.set(busName, 'Paused');
@@ -511,7 +541,7 @@ export default class SmartPauseResumeExtension extends Extension {
                 -1,
                 null,
                 (obj, res) => {
-                    if (!this._settings) return;
+                    if (!this._isActive || !this._settings) return; // Guard
                     try {
                         obj.call_finish(res);
                         this._status.set(busName, 'Playing');
