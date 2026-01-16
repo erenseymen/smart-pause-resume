@@ -4,6 +4,7 @@
   "description": "Ensures only one media player is playing at a time. Auto-pauses other players and resumes the most recently paused one.",
   "version": 1,
   "shell-version": [
+    "45",
     "46",
     "47",
     "48",
