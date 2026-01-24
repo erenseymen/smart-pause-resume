@@ -119,7 +119,7 @@ export default class SmartPauseResumeExtension extends Extension {
             // Defer initialization to run in the main loop, ensuring non-blocking behavior
             this._idleId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
                 this._idleId = 0;
-                this._initialize();
+                this._activate();
                 return GLib.SOURCE_REMOVE;
             });
         }
