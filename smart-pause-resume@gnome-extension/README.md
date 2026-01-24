@@ -29,7 +29,7 @@ A GNOME Shell extension that ensures **only one MPRIS media player** is "Playing
 3. Link the extension to your local extensions directory:
    ```bash
    mkdir -p ~/.local/share/gnome-shell/extensions
-   ln -sf . ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
+   ln -sf "$(pwd)" ~/.local/share/gnome-shell/extensions/smart-pause-resume@erenseymen.github.io
    ```
    
 4. Restart GNOME Shell:
