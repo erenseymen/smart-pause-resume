@@ -16,10 +16,14 @@ const MPRIS_PATH = '/org/mpris/MediaPlayer2';
 const SmartPauseResumeToggle = GObject.registerClass(
     class SmartPauseResumeToggle extends QuickSettings.QuickToggle {
         constructor(extensionObject) {
+            const iconPath = extensionObject.dir.get_child('icons')
+                .get_child('smart-pause-resume-symbolic.svg');
+            const gicon = Gio.FileIcon.new(iconPath);
+
             super({
                 title: 'Smart Pause',
                 subtitle: 'Auto-pause media',
-                iconName: 'media-playback-pause-symbolic',
+                gicon: gicon,
                 toggleMode: true,
             });
 
