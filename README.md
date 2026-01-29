@@ -4,7 +4,7 @@ Guarantee that **only one MPRIS player** is "Playing" at a time on your Linux de
 
 **Available in two versions:**
 - 🐚 **Bash Script** - Universal solution for any Linux desktop
-- 🎨 **GNOME Extension** - Native integration for GNOME Shell 46+
+- 🎨 **GNOME Extension** - Native integration for GNOME Shell 45+
 
 ## Features
 - **Auto-pause** all other players when one starts or resumes
@@ -19,11 +19,13 @@ Guarantee that **only one MPRIS player** is "Playing" at a time on your Linux de
 
 A native GNOME Shell extension with Quick Settings integration and no external dependencies.
 
-### Requirements
-- GNOME Shell 46, 47, 48, or 49
-- No external dependencies
-
 ### Installation
+
+#### From GNOME Extensions (Recommended)
+
+[![Get it on GNOME Extensions](https://img.shields.io/badge/Get%20it%20on-GNOME%20Extensions-4A86CF?style=for-the-badge&logo=gnome&logoColor=white)](https://extensions.gnome.org/extension/9167/smart-pause-resume/)
+
+#### From Source
 
 1. Navigate to the extension directory:
    ```sh

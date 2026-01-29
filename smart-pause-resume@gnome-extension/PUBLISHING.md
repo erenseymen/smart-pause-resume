@@ -22,7 +22,7 @@ The official way to package the extension is using the `gnome-extensions` tool:
 
 ```bash
 # This creates smart-pause-resume@erenseymen.github.io.shell-extension.zip
-gnome-extensions pack --force .
+gnome-extensions pack --force --extra-source=icons .
 ```
 
 *Note: If `gnome-extensions` is not installed, you can use `zip`:*
@@ -36,7 +36,7 @@ zip -r smart-pause-resume@erenseymen.github.io.shell-extension.zip . -x "*.git*"
 Before uploading, you can validate the extension locally using `gnome-extensions` tool (if available):
 
 ```bash
-gnome-extensions pack --force .
+gnome-extensions pack --force --extra-source=icons .
 # This usually creates a zip in proper format, checking metadata.
 ```
 
