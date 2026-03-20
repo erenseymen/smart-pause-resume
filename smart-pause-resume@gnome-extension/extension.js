@@ -480,6 +480,7 @@ export default class SmartPauseResumeExtension extends Extension {
         this._timeoutManager = null;
         this._settings = null;
         this._settingsChangedId = null;
+        this._toggleVisibilityChangedId = null;
         this._indicator = null;
         this._idleId = 0;
     }
@@ -487,8 +488,12 @@ export default class SmartPauseResumeExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
 
-        this._indicator = new SmartPauseResumeIndicator(this);
-        Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
+        this._syncIndicator();
+
+        this._toggleVisibilityChangedId = this._settings.connect(
+            'changed::show-quick-settings-toggle',
+            () => this._syncIndicator()
+        );
 
         this._settingsChangedId = this._settings.connect('changed::enabled', () => {
             if (this._settings.get_boolean('enabled')) {
@@ -513,6 +518,11 @@ export default class SmartPauseResumeExtension extends Extension {
             this._settingsChangedId = null;
         }
 
+        if (this._toggleVisibilityChangedId && this._settings) {
+            this._settings.disconnect(this._toggleVisibilityChangedId);
+            this._toggleVisibilityChangedId = null;
+        }
+
         this._deactivate();
 
         if (this._indicator) {
@@ -521,6 +531,18 @@ export default class SmartPauseResumeExtension extends Extension {
         }
 
         this._settings = null;
+    }
+
+    _syncIndicator() {
+        const showToggle = this._settings.get_boolean('show-quick-settings-toggle');
+
+        if (showToggle && !this._indicator) {
+            this._indicator = new SmartPauseResumeIndicator(this);
+            Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
+        } else if (!showToggle && this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
     }
 
     _activate() {

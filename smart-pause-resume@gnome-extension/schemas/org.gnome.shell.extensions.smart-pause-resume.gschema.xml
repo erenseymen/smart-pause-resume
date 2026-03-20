@@ -12,5 +12,10 @@
       <summary>Resume delay (milliseconds)</summary>
       <description>Time to wait before confirming a pause/stop event and resuming another player. This prevents false triggers when rapidly switching playback states.</description>
     </key>
+    <key name="show-quick-settings-toggle" type="b">
+      <default>true</default>
+      <summary>Show Quick Settings toggle</summary>
+      <description>When enabled, shows the Smart Pause/Resume toggle in the Quick Settings panel. When disabled, the toggle is hidden but the extension continues to function.</description>
+    </key>
   </schema>
 </schemalist>

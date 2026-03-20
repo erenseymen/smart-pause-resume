@@ -1,14 +1,15 @@
 {
   "uuid": "smart-pause-resume@erenseymen.github.io",
-  "name": "Smart Pause Resume",
-  "description": "Ensures only one media player is playing at a time. Auto-pauses other players and resumes the most recently paused one.",
-  "version": 3,
+  "name": "Smart Pause & Resume",
+  "summary": "Automatically pause music while watching videos",
+  "description": "Automatically pause music while watching videos.\n\nExample: Spotify pauses when you open YouTube, then starts again when you stop or close the video. No more overlapping sound!\n\nWorks with all major media players with MPRIS support, including Spotify, VLC, mpv, and most web browsers.",
   "shell-version": [
     "45",
     "46",
     "47",
     "48",
-    "49"
+    "49",
+    "50"
   ],
   "url": "https://github.com/erenseymen/smart-pause-resume",
   "settings-schema": "org.gnome.shell.extensions.smart-pause-resume"
